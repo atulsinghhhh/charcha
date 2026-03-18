@@ -1,14 +1,34 @@
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useAuth } from "../context/AuthProvider";
+import { useState } from "react";
+import { router } from "expo-router";
 
 
 export default function LoginScreen() {
+    const { Login } = useAuth();
+    const [ email,setEmail ] = useState("");
+    const [ password,setPassword ] = useState("");
+    const [ loading,setLoading ] = useState(false);
+
+    const handleLogin = async () =>{
+        setLoading(true);
+        try{
+            await Login(email,password);
+            router.push("/(tabs)");
+        }catch(error){
+            console.log("error occur due to",error);
+        }finally{
+            setLoading(false);
+        }
+    }
     return(
         <SafeAreaView edges={["top","bottom"]} style={styles.container}>
             <View style={styles.header}>
                 <Text style={styles.title}>Welcome back</Text>
                 <Text style={styles.subtitle}>Login to your account</Text>
             </View>
+
             <View style={styles.form}>
                 <TextInput
                     placeholder="email"
@@ -16,6 +36,8 @@ export default function LoginScreen() {
                     style={styles.emailInput}
                     keyboardType="email-address"
                     autoCapitalize="none"
+                    value={email}
+                    onChangeText={setEmail}
                 />
                 <TextInput
                     placeholder="password"
@@ -23,12 +45,25 @@ export default function LoginScreen() {
                     style={styles.passwordInput}
                     secureTextEntry
                     autoCapitalize="none"
+                    value={password}
+                    onChangeText={setPassword}
                 />
 
-                <TouchableOpacity style={styles.button}>
-                    <Text style={styles.buttonText}>Login</Text>
+                <TouchableOpacity 
+                    disabled={loading}
+                    style={styles.button} 
+                    onPress={handleLogin}>
+                    <Text style={styles.buttonText}
+                        disabled={loading}
+                    >
+                        {loading ? "Logging in..." : "Login"}
+                    </Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.signupText}>
+
+                <TouchableOpacity 
+                    style={styles.signupText}
+                    onPress={() => router.push("/signup")}
+                >
                     <Text style={styles.baseText}>Don't have an account? <Text style={styles.signup}>Sign Up</Text></Text>
                 </TouchableOpacity>
             </View>
@@ -77,11 +112,11 @@ const styles = StyleSheet.create({
         marginBottom: 24,
     },
     button: {
-        backgroundColor: "#4F46E5",
+        backgroundColor: "#111827",
         borderRadius: 12,
         padding: 18,
         alignItems: "center",
-        shadowColor: "#4F46E5",
+        shadowColor: "#111827",
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.2,
         shadowRadius: 8,

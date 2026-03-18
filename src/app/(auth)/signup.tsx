@@ -1,14 +1,35 @@
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useAuth } from "../context/AuthProvider";
+import { useState } from "react";
+import { router } from "expo-router";
 
 
 export default function SignupScreen() {
+    
+    const { Signup } = useAuth();
+    const [ email,setEmail ] = useState("");
+    const [ password,setPassword ] = useState("");
+    const [ loading,setLoading ] = useState(false);
+
+    const handleSignup = async () =>{
+        setLoading(true);
+        try{
+            await Signup(email,password);
+            router.push("/login");
+        }catch(error) {
+            console.log("error occur due to",error);
+        }finally{
+            setLoading(false);
+        }
+    }
     return(
         <SafeAreaView edges={["top","bottom"]} style={styles.container}>
             <View style={styles.header}>
                 <Text style={styles.title}>Create your account</Text>
                 <Text style={styles.subtitle}>Join Charcha and connect with people around you</Text>
             </View>
+
             <View style={styles.form}>
                 <TextInput
                     placeholder="email"
@@ -16,20 +37,35 @@ export default function SignupScreen() {
                     style={styles.emailInput}
                     keyboardType="email-address"
                     autoCapitalize="none"
-                />
+                    value={email}
+                    onChangeText={setEmail}
+                />  
                 <TextInput
                     placeholder="password"
                     placeholderTextColor={"#999"}
                     style={styles.passwordInput}
                     secureTextEntry
                     autoCapitalize="none"
+                    value={password}
+                    onChangeText={setPassword}
                 />
 
-                <TouchableOpacity style={styles.button}>
-                    <Text style={styles.buttonText}>Sign Up</Text>
+                <TouchableOpacity 
+                    disabled={loading} 
+                    style={styles.button} 
+                    onPress={handleSignup}>
+                    <Text style={styles.buttonText}>
+                        {loading ? "Creating account..." : "Sign Up"}
+                    </Text>  
                 </TouchableOpacity>
+
                 <TouchableOpacity style={styles.loginText}>
-                    <Text style={styles.baseText}>Already have an account? <Text style={styles.login}>Login</Text></Text>
+                    <Text style={styles.baseText}>Already have an account? <Text 
+                        style={styles.login}
+                        onPress={() => router.push("/login")}
+                    >
+                        Login
+                    </Text></Text>
                 </TouchableOpacity>
             </View>
 
@@ -77,11 +113,11 @@ const styles = StyleSheet.create({
         marginBottom: 24,
     },
     button: {
-        backgroundColor: "#4F46E5",
+        backgroundColor: "#0d0e0eff",
         borderRadius: 12,
-        padding: 18,
+        padding: 18,    
         alignItems: "center",
-        shadowColor: "#4F46E5",
+        shadowColor: "#0d0e0eff",
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.2,
         shadowRadius: 8,
