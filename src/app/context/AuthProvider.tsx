@@ -1,5 +1,6 @@
 import { createContext, useContext, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
+import { generateUsername } from "@/lib/username";
 
 
 export interface User {
@@ -19,17 +20,23 @@ interface AuthContextType {
 const AuthContext = createContext< AuthContextType | null>(null);
 
 
-export const AuthProvider = ({children}: {children: React.ReactNode}) => {
+export default function AuthProvider ({children}: {children: React.ReactNode}) {
 
     const [ user,setUser ] = useState<User | null>(null);
     const [ loading,setLoading ] = useState<boolean>(false);
+    const username = generateUsername();
 
     const Signup = async (email: string,password: string) =>{
         setLoading(true);
         try{
             const { data,error } = await supabase.auth.signUp({
                 email,
-                password
+                password,
+                options: {
+                    data: {
+                        username
+                    }
+                }
             });
 
             if(error){
