@@ -61,6 +61,11 @@ export default function Index() {
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
       >
+
+        <View style={styles.emptyState}>
+          <Ionicons name="people-outline" size={64} color="#E5E7EB" />
+          <Text style={styles.emptyText}>No users found nearby</Text>
+        </View>
        
       </ScrollView>
 
