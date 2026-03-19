@@ -112,9 +112,10 @@ export default function Index() {
   };
 
   const navigateToChat = (selectedUser: any) => {
-    // Navigate to chat passing user details (adjust path as needed in your app)
+    // Navigate to chat bypassing expo-router strict type errors
+    // Since 'chat' is in the (tabs) folder, its route path is '/chat' automatically via expo routing
     router.push({
-      pathname: "/chat",
+      pathname: "/chat" as any,
       params: { 
         userId: selectedUser.id, 
         username: selectedUser.username 
