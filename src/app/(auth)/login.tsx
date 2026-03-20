@@ -1,4 +1,4 @@
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../context/AuthProvider";
 import { useState } from "react";
@@ -16,8 +16,9 @@ export default function LoginScreen() {
         try{
             await Login(email,password);
             router.push("/(tabs)");
-        }catch(error){
+        }catch(error: any){
             console.log("error occur due to",error);
+            Alert.alert("Login Failed", error.message || "An error occurred");
         }finally{
             setLoading(false);
         }

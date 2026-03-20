@@ -1,4 +1,4 @@
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../context/AuthProvider";
 import { useState } from "react";
@@ -17,8 +17,9 @@ export default function SignupScreen() {
         try{
             await Signup(email,password);
             router.push("/login");
-        }catch(error) {
+        }catch(error: any) {
             console.log("error occur due to",error);
+            Alert.alert("Signup Failed", error.message || "An error occurred");
         }finally{
             setLoading(false);
         }

@@ -44,18 +44,18 @@ export default function Index() {
 
   const initializeLocationAndFetch = async () => {
     setLoading(true);
-    const loc = await getLocationAndUpdateProfile();
-    if (loc) {
-      await fetchNearbyUsers(loc.lat, loc.lng, radiusKm);
+    const location = await getLocationAndUpdateProfile();
+    if (location) {
+      await fetchNearbyUsers(location.lat, location.lng, radiusKm);
     }
     setLoading(false);
   };
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    const loc = await getLocationAndUpdateProfile();
-    if (loc) {
-      await fetchNearbyUsers(loc.lat, loc.lng, radiusKm);
+    const location = await getLocationAndUpdateProfile();
+    if (location) {
+      await fetchNearbyUsers(location.lat, location.lng, radiusKm);
     }
     setRefreshing(false);
   }, [radiusKm]);

@@ -58,6 +58,7 @@ export default function AuthProvider ({children}: {children: React.ReactNode}) {
     const Signup = async (email: string,password: string) =>{
         setLoading(true);
         const username = generateUsername();
+        console.log("username: ",username);
         try{
             const { data,error } = await supabase.auth.signUp({
                 email,
@@ -83,6 +84,7 @@ export default function AuthProvider ({children}: {children: React.ReactNode}) {
             }
         }catch(error){
             console.log("error occur due to",error);
+            throw error;
         }finally{
             setLoading(false);
         }
@@ -109,6 +111,7 @@ export default function AuthProvider ({children}: {children: React.ReactNode}) {
             }
         } catch (error) {
             console.log("error occur due to",error);
+            throw error;
         }finally{
             setLoading(false);
         }
