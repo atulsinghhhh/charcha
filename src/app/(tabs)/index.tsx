@@ -25,17 +25,15 @@ export default function Index() {
   const [nearbyUsers, setNearbyUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [radiusKm, setRadiusKm] = useState<number>(10); // 5, 10, 20
+  const [radiusKm, setRadiusKm] = useState<number>(10); 
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
 
-  // Initial fetch and permissions
   useEffect(() => {
     if (user) {
       initializeLocationAndFetch(user.id);
     }
   }, [user, radiusKm]);
 
-  // Refetch when radius changes, if we already have location
   useEffect(() => {
     if (userLocation && user) {
       fetchNearbyUsers(userLocation.lat, userLocation.lng, radiusKm, user.id);
@@ -75,7 +73,6 @@ export default function Index() {
       
       setUserLocation({ lat, lng });
 
-      // Update in profiles table (or users if your schema requires it)
       const { error } = await supabase.from("profiles").update({
         latitude: lat,
         longitude: lng,
@@ -101,21 +98,17 @@ export default function Index() {
         radius: radius,
       });
 
-      console.log(data);
+      // console.log(data);
       if (error) throw error;
       
-      // Filter out the current user if the RPC doesn't do it
       const filteredData = (data || []).filter((u: any) => u.id !== userId);
       setNearbyUsers(filteredData);
     } catch (error) {
       console.error("Error fetching nearby users:", error);
-      // Alert.alert("Error", "Could not fetch nearby users.");
     }
   };
 
   const navigateToChat = (selectedUser: any) => {
-    // Navigate to chat bypassing expo-router strict type errors
-    // Since 'chat' is in the (tabs) folder, its route path is '/chat' automatically via expo routing
     router.push({
       pathname: "/chat" as any,
       params: { 
@@ -147,7 +140,10 @@ export default function Index() {
 
   const renderUserCard = ({ item }: { item: any }) => {
     // Format distance: 1 decimal place
-    const distanceText = item.dist_km ? `${Number(item.dist_km).toFixed(1)} km away` : "Unknown distance";
+    const distanceText = (item.dist_km !== undefined && item.dist_km !== null) 
+      ? `${Number(item.dist_km).toFixed(1)} km away` 
+      : "Unknown distance";
+    // console.log(distanceText);
     
     return (
       <TouchableOpacity 
@@ -221,7 +217,7 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#121212", // Dark theme background
+    backgroundColor: "#121212",
   },
   header: {
     flexDirection: "row",

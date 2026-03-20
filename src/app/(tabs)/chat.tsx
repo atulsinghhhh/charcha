@@ -1,47 +1,115 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { 
+  View, Text, StyleSheet, TextInput, TouchableOpacity, 
+  FlatList, KeyboardAvoidingView, Platform, ActivityIndicator 
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-
-// Dummy data for visual presentation until database is wired up
-const initialMessages = [
-  { id: '1', text: 'Hey there! I saw you are nearby.', sender: 'them', timestamp: new Date().toISOString() },
-];
+import { useAuth } from '../context/AuthProvider';
+import { supabase } from '@/lib/supabase/client';
+import { useChatRealtime } from '@/hooks/realtime';
 
 export default function ChatScreen() {
-  const { userId, username } = useLocalSearchParams();
   const router = useRouter();
+  const { user } = useAuth();
   
-  const [messages, setMessages] = useState(initialMessages);
+  // We no longer use conversationId, only userId (the other user's ID)
+  const { userId: otherUserId, username: otherUsername } = useLocalSearchParams<{
+    userId?: string;
+    username?: string;
+  }>();
+  
+  const [messages, setMessages] = useState<any[]>([]);
   const [inputText, setInputText] = useState('');
+  const [loading, setLoading] = useState(true);
   const flatListRef = useRef<FlatList>(null);
 
-  const sendMessage = () => {
-    if (!inputText.trim()) return;
+  const markMessagesAsRead = async () => {
+    if (!user || !otherUserId) return;
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .update({ is_read: true })
+        .eq('receiver_id', user.id)
+        .eq('sender_id', otherUserId)
+        .eq('is_read', false);
+      if (error) console.error("Error marking messages read:", error);
+    } catch (e) {
+      // Ignore
+    }
+  };
+
+  const fetchMessages = useCallback(async () => {
+    if (!user || !otherUserId) {
+        setLoading(false);
+        return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .or(`and(sender_id.eq.${user.id},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${user.id})`)
+        .order('created_at', { ascending: false })
+        .limit(50);
+        
+      if (error) throw error;
+      setMessages(data || []);
+      markMessagesAsRead();
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [user, otherUserId]);
+
+  const onNewMessage = useCallback((newMessage: any) => {
+    if (newMessage.sender_id === otherUserId) {
+      markMessagesAsRead();
+    }
     
-    const newMessage = {
-      id: Date.now().toString(),
-      text: inputText,
-      sender: 'me',
-      timestamp: new Date().toISOString(),
-    };
+    setMessages(prev => {
+      if (prev.find(m => m.id === newMessage.id)) return prev;
+      return [newMessage, ...prev];
+    });
+  }, [otherUserId]);
+
+  useChatRealtime(otherUserId || null, onNewMessage);
+
+  useEffect(() => {
+    fetchMessages();
+  }, [fetchMessages]);
+
+  const sendMessage = async () => {
+    if (!inputText.trim() || !otherUserId || !user) return;
     
-    setMessages([...messages, newMessage]);
+    const textToSend = inputText.trim();
     setInputText('');
     
-    // Auto-scroll to bottom to show latest message
-    setTimeout(() => {
-      flatListRef.current?.scrollToEnd({ animated: true });
-    }, 100);
+    try {
+      const { error } = await supabase.from('messages').insert({
+        sender_id: user.id,
+        receiver_id: otherUserId,
+        content: textToSend,
+      });
+      
+      if (error) {
+        console.error("Error sending message:", error);
+        setInputText(textToSend);
+      }
+    } catch (error) {
+      console.error("Error sending message:", error);
+      setInputText(textToSend);
+    }
   };
 
   const renderMessage = ({ item }: { item: any }) => {
-    const isMe = item.sender === 'me';
+    const isMe = item.sender_id === user?.id;
     return (
       <View style={[styles.messageWrapper, isMe ? styles.messageWrapperMe : styles.messageWrapperThem]}>
         <View style={[styles.messageBubble, isMe ? styles.messageBubbleMe : styles.messageBubbleThem]}>
           <Text style={[styles.messageText, isMe ? styles.messageTextMe : styles.messageTextThem]}>
-            {item.text}
+            {item.content}
           </Text>
         </View>
       </View>
@@ -49,28 +117,34 @@ export default function ChatScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      {/* Header */}
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{username || 'Anonymous User'}</Text>
-        <View style={{ width: 60 }} /> {/* Spacer to balance the '← Back' button size */}
+        <Text style={styles.headerTitle}>{String(otherUsername || 'Chat')}</Text>
+        <View style={{ width: 60 }} />
       </View>
 
       <KeyboardAvoidingView 
         style={styles.keyboardAware} 
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          keyExtractor={(item) => item.id}
-          renderItem={renderMessage}
-          contentContainerStyle={styles.messageList}
-          showsVerticalScrollIndicator={false}
-        />
+        {loading ? (
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color="#4ade80" />
+          </View>
+        ) : (
+          <FlatList
+            ref={flatListRef}
+            data={messages}
+            inverted={true}
+            keyExtractor={(item) => String(item.id)}
+            renderItem={renderMessage}
+            contentContainerStyle={styles.messageList}
+            showsVerticalScrollIndicator={false}
+          />
+        )}
 
         <View style={styles.inputContainer}>
           <TextInput
@@ -82,9 +156,9 @@ export default function ChatScreen() {
             multiline
           />
           <TouchableOpacity 
-            style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]} 
+            style={[styles.sendButton, (!inputText.trim() || !otherUserId) ? styles.sendButtonDisabled : null]} 
             onPress={sendMessage}
-            disabled={!inputText.trim()}
+            disabled={!inputText.trim() || !otherUserId}
           >
             <Text style={styles.sendButtonText}>Send</Text>
           </TouchableOpacity>
@@ -98,6 +172,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#121212',
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   header: {
     flexDirection: 'row',
@@ -129,7 +208,6 @@ const styles = StyleSheet.create({
   messageList: {
     padding: 16,
     flexGrow: 1,
-    justifyContent: 'flex-end',
   },
   messageWrapper: {
     marginBottom: 12,
@@ -169,7 +247,6 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     padding: 12,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 12,
     backgroundColor: '#1c1c20',
     borderTopWidth: 1,
     borderTopColor: '#2a2a35',
@@ -194,7 +271,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 2, // Align with input
+    marginBottom: 2,
   },
   sendButtonDisabled: {
     backgroundColor: '#3f3f46',
