@@ -19,7 +19,7 @@ import { useRouter } from "expo-router";
 const UserIcon = () => <Text style={{fontSize: 24}}>👤</Text>;
 
 export default function Index() {
-  const { user } = useAuth();
+  const { user, Logout } = useAuth();
   const router = useRouter();
 
   const [nearbyUsers, setNearbyUsers] = useState<any[]>([]);
@@ -31,36 +31,37 @@ export default function Index() {
   // Initial fetch and permissions
   useEffect(() => {
     if (user) {
-      initializeLocationAndFetch();
+      initializeLocationAndFetch(user.id);
     }
-  }, [user]);
+  }, [user, radiusKm]);
 
   // Refetch when radius changes, if we already have location
   useEffect(() => {
-    if (userLocation) {
-      fetchNearbyUsers(userLocation.lat, userLocation.lng, radiusKm);
+    if (userLocation && user) {
+      fetchNearbyUsers(userLocation.lat, userLocation.lng, radiusKm, user.id);
     }
   }, [radiusKm]);
 
-  const initializeLocationAndFetch = async () => {
+  const initializeLocationAndFetch = async (userId: string) => {
     setLoading(true);
-    const location = await getLocationAndUpdateProfile();
+    const location = await getLocationAndUpdateProfile(userId);
     if (location) {
-      await fetchNearbyUsers(location.lat, location.lng, radiusKm);
+      await fetchNearbyUsers(location.lat, location.lng, radiusKm, userId);
     }
     setLoading(false);
   };
 
   const onRefresh = useCallback(async () => {
+    if (!user) return;
     setRefreshing(true);
-    const location = await getLocationAndUpdateProfile();
+    const location = await getLocationAndUpdateProfile(user.id);
     if (location) {
-      await fetchNearbyUsers(location.lat, location.lng, radiusKm);
+      await fetchNearbyUsers(location.lat, location.lng, radiusKm, user.id);
     }
     setRefreshing(false);
-  }, [radiusKm]);
+  }, [radiusKm, user]);
 
-  const getLocationAndUpdateProfile = async (): Promise<{lat: number, lng: number} | null> => {
+  const getLocationAndUpdateProfile = async (userId: string): Promise<{lat: number, lng: number} | null> => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
@@ -78,7 +79,7 @@ export default function Index() {
       const { error } = await supabase.from("profiles").update({
         latitude: lat,
         longitude: lng,
-      }).eq("id", user?.id);
+      }).eq("id", userId);
 
       if (error) {
         console.error("Error updating location:", error);
@@ -92,7 +93,7 @@ export default function Index() {
     }
   };
 
-  const fetchNearbyUsers = async (lat: number, lng: number, radius: number) => {
+  const fetchNearbyUsers = async (lat: number, lng: number, radius: number, userId: string) => {
     try {
       const { data, error } = await supabase.rpc("get_nearby_users", {
         user_lat: lat,
@@ -100,10 +101,11 @@ export default function Index() {
         radius: radius,
       });
 
+      console.log(data);
       if (error) throw error;
       
       // Filter out the current user if the RPC doesn't do it
-      const filteredData = (data || []).filter((u: any) => u.id !== user?.id);
+      const filteredData = (data || []).filter((u: any) => u.id !== userId);
       setNearbyUsers(filteredData);
     } catch (error) {
       console.error("Error fetching nearby users:", error);
@@ -179,6 +181,9 @@ export default function Index() {
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
         <Text style={styles.title}>Nearby Users 🔥</Text>
+        <TouchableOpacity onPress={Logout} style={styles.logoutButton}>
+          <Text style={styles.logoutText}>Logout</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.filtersWrapper}>
@@ -219,6 +224,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#121212", // Dark theme background
   },
   header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 24,
     paddingTop: 24,
     paddingBottom: 16,
@@ -228,6 +236,17 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#FFFFFF",
     letterSpacing: -0.5,
+  },
+  logoutButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: "#ef4444",
+    borderRadius: 12,
+  },
+  logoutText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: 14,
   },
   filtersWrapper: {
     paddingHorizontal: 24,
