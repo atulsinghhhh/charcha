@@ -31,9 +31,11 @@ export default function MessagesScreen() {
     }
     try {
       // Fetch latest messages for user directly from messages table
+      // We explicitly check for 'room_id' being null so that Community messages don't leak into direct messages!
       const { data: msgs, error: msgError } = await supabase
         .from('messages')
         .select('*')
+        .is('room_id', null)
         .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
         .order('created_at', { ascending: false })
         .limit(500);
@@ -62,9 +64,8 @@ export default function MessagesScreen() {
         }
       });
 
-      const uniqueUserIds = Array.from(convMap.keys());
-
-      // Fetch counterparties usernames
+      const uniqueUserIds = Array.from(convMap.keys()).filter(Boolean);
+      
       const { data: profiles, error: profileError } = await supabase
         .from('profiles')
         .select('id, username')

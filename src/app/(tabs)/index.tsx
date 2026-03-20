@@ -14,6 +14,7 @@ import { useAuth } from "../context/AuthProvider";
 import * as Location from "expo-location";
 import { supabase } from "@/lib/supabase/client";
 import { useRouter } from "expo-router";
+import { getGridKey } from "@/lib/community";
 
 // Temporary until ionic or other icons are added.
 const UserIcon = () => <Text style={{fontSize: 24}}>👤</Text>;
@@ -119,7 +120,7 @@ export default function Index() {
   };
 
   const renderRadiusChips = () => {
-    const options = [5, 10, 20];
+    const options = [5, 10];
     return (
       <View style={styles.chipContainer}>
         {options.map((opt) => (
@@ -135,6 +136,28 @@ export default function Index() {
           </TouchableOpacity>
         ))}
       </View>
+    );
+  };
+
+  const renderCommunityCard = () => {
+    if (!userLocation) return null;
+    const gridKey = getGridKey(userLocation.lat, userLocation.lng);
+    
+    return (
+      <TouchableOpacity 
+        style={styles.communityCard} 
+        onPress={() => router.push("/community" as any)}
+        activeOpacity={0.8}
+      >
+        <View style={styles.communityCardContent}>
+          <Text style={styles.communityEmoji}>🌍</Text>
+          <View style={styles.communityTextContent}>
+            <Text style={styles.communityTitle}>Sector {String(gridKey)} Hub</Text>
+            <Text style={styles.communitySubtitle}>Join the local conversation</Text>
+          </View>
+        </View>
+        <Text style={styles.communityArrow}>→</Text>
+      </TouchableOpacity>
     );
   };
 
@@ -176,7 +199,7 @@ export default function Index() {
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Nearby Users 🔥</Text>
+        <Text style={styles.title}>Nearby Users </Text>
         <TouchableOpacity onPress={Logout} style={styles.logoutButton}>
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
@@ -186,6 +209,8 @@ export default function Index() {
         <Text style={styles.filterLabel}>Search Radius</Text>
         {renderRadiusChips()}
       </View>
+
+      {renderCommunityCard()}
 
       {loading && !refreshing ? (
         <View style={styles.loaderContainer}>
@@ -255,6 +280,48 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     textTransform: "uppercase",
     letterSpacing: 0.5,
+  },
+  communityCard: {
+    marginHorizontal: 24,
+    marginBottom: 20,
+    backgroundColor: '#4ade80',
+    borderRadius: 20,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#4ade80',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  communityCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  communityEmoji: {
+    fontSize: 28,
+    marginRight: 12,
+  },
+  communityTextContent: {
+    justifyContent: 'center',
+  },
+  communityTitle: {
+    color: '#18181b',
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  communitySubtitle: {
+    color: '#27272a',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  communityArrow: {
+    color: '#18181b',
+    fontSize: 24,
+    fontWeight: '800',
   },
   chipContainer: {
     flexDirection: "row",
