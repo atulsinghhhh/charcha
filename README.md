@@ -96,6 +96,8 @@ Ensure all tables, Postgres Functions, and Row Level Security (RLS) policies are
 ```bash
 npx expo start --dev-client
 ```
-Press `a` to run on an Android emulator/device, or `i` for iOS!
+Press `a` to run on an Android emulator/device, or `i` for iOS!'
 
 *(Ensure your simulator/device has Location permissions granted for Sector calculations).*
+
+~Atul Rathore ~
