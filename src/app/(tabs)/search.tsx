@@ -99,7 +99,7 @@ export default function SearchScreen() {
     return (
         <SafeAreaView style={styles.container} edges={["top"]}>
             <View style={styles.header}>
-                <Text style={styles.headerTitle}>Discover</Text>
+                <Text style={styles.headerTitle}>Explore</Text>
             </View>
 
             <View style={styles.searchSection}>

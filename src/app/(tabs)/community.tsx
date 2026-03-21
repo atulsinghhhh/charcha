@@ -13,7 +13,7 @@ import { useLocalSearchParams } from 'expo-router';
 
 export default function CommunityScreen() {
   const { user } = useAuth();
-  const { getorCreateRoom, loadMessages, sendMessage, subscribeToRoom, getRoomsInArea, createCustomRoom } = useCommunity();
+  const { getorCreateRoom, loadMessages, sendMessage, subscribeToRoom, getRoomsInArea, createCustomRoom, deleteCustomRoom } = useCommunity();
   const params = useLocalSearchParams<{ joinRoomId?: string }>();
   
   const [messages, setMessages] = useState<any[]>([]);
@@ -91,11 +91,36 @@ export default function CommunityScreen() {
     }
   };
 
+  const handleDeleteCommunity = (room: any) => {
+    Alert.alert(
+      "Delete Community", 
+      `Are you sure you want to delete "${room.name}"? This action cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => confirmDelete(room.id) }
+      ]
+    );
+  };
+
+  const confirmDelete = async (roomId: string) => {
+    try {
+      setLoading(true);
+      await deleteCustomRoom(roomId);
+      if (userLocation) {
+        await fetchAreaRooms(userLocation.lat, userLocation.lng);
+      }
+    } catch (error: any) {
+      Alert.alert("Delete Failed", error.message || "Could not delete community");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleCreateCommunity = async () => {
     if (!newCommunityName.trim() || !userLocation) return;
     try {
         setLoading(true);
-        await createCustomRoom(userLocation.lat, userLocation.lng, newCommunityName.trim());
+        await createCustomRoom(userLocation.lat, userLocation.lng, newCommunityName.trim(), user?.id);
         setModalVisible(false);
         setNewCommunityName('');
         await fetchAreaRooms(userLocation.lat, userLocation.lng);
@@ -206,7 +231,14 @@ export default function CommunityScreen() {
                   <Text style={styles.roomTitle}>{roomName}</Text>
                   <Text style={styles.roomSubtitle}>{isDefault ? "Local Default Chat" : "Custom Community"}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={24} color="#A1A1AA" />
+              
+              {!isDefault && item.created_by === user?.id ? (
+                  <TouchableOpacity onPress={() => handleDeleteCommunity(item)} style={{ padding: 8 }}>
+                      <Ionicons name="trash-outline" size={22} color="#EF4444" />
+                  </TouchableOpacity>
+              ) : (
+                  <Ionicons name="chevron-forward" size={24} color="#A1A1AA" />
+              )}
           </TouchableOpacity>
       )
   };

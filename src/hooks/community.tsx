@@ -69,16 +69,21 @@ export const useCommunity = () => {
         }
     }
 
-    const createCustomRoom = async (lat: number, lng: number, name: string) => {
+    const createCustomRoom = async (lat: number, lng: number, name: string, userId?: string) => {
         const gridKey = getGridKey(lat, lng);
+        const insertObj: any = {
+            grid_key: gridKey,
+            latitude: lat,
+            longitude: lng,
+            name: name
+        };
+        if (userId) {
+            insertObj.created_by = userId;
+        }
+
         const { data: newRoom, error } = await supabase
             .from("rooms")
-            .insert([{
-                grid_key: gridKey,
-                latitude: lat,
-                longitude: lng,
-                name: name
-            }])
+            .insert([insertObj])
             .select()
             .single();
 
@@ -98,5 +103,10 @@ export const useCommunity = () => {
         return data || [];
     }
 
-    return { getorCreateRoom, loadMessages, sendMessage, subscribeToRoom, createCustomRoom, getRoomsInArea }
+    const deleteCustomRoom = async (roomId: string) => {
+        const { error } = await supabase.from("rooms").delete().eq("id", roomId);
+        if (error) throw error;
+    }
+
+    return { getorCreateRoom, loadMessages, sendMessage, subscribeToRoom, createCustomRoom, getRoomsInArea, deleteCustomRoom }
 }
