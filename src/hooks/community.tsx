@@ -7,7 +7,7 @@ export const useCommunity = () => {
         const gridKey = getGridKey(lat,lng);
 
         // check if room exists
-        const { data: exisitingRoom } = await supabase.from("rooms").select("*").eq("grid_key",gridKey).single();
+        const { data: exisitingRoom } = await supabase.from("rooms").select("*").eq("grid_key",gridKey).is("name", null).maybeSingle();
         if(exisitingRoom) return exisitingRoom;
 
         // create room
@@ -69,5 +69,34 @@ export const useCommunity = () => {
         }
     }
 
-    return { getorCreateRoom,loadMessages,sendMessage,subscribeToRoom }
+    const createCustomRoom = async (lat: number, lng: number, name: string) => {
+        const gridKey = getGridKey(lat, lng);
+        const { data: newRoom, error } = await supabase
+            .from("rooms")
+            .insert([{
+                grid_key: gridKey,
+                latitude: lat,
+                longitude: lng,
+                name: name
+            }])
+            .select()
+            .single();
+
+        if(error) throw error;
+        return newRoom;
+    }
+
+    const getRoomsInArea = async (lat: number, lng: number) => {
+        const gridKey = getGridKey(lat, lng);
+        const { data, error } = await supabase
+            .from("rooms")
+            .select("*")
+            .eq("grid_key", gridKey)
+            .order("created_at", { ascending: false });
+
+        if(error) throw error;
+        return data || [];
+    }
+
+    return { getorCreateRoom, loadMessages, sendMessage, subscribeToRoom, createCustomRoom, getRoomsInArea }
 }

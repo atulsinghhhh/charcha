@@ -1,32 +1,59 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { 
   View, Text, StyleSheet, TextInput, TouchableOpacity, 
-  FlatList, KeyboardAvoidingView, Platform, ActivityIndicator, Alert
+  FlatList, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthProvider';
 import { useCommunity } from '@/hooks/community';
 import * as Location from "expo-location";
 import { supabase } from '@/lib/supabase/client';
+import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams } from 'expo-router';
 
 export default function CommunityScreen() {
   const { user } = useAuth();
-  const { getorCreateRoom, loadMessages, sendMessage, subscribeToRoom } = useCommunity();
+  const { getorCreateRoom, loadMessages, sendMessage, subscribeToRoom, getRoomsInArea, createCustomRoom } = useCommunity();
+  const params = useLocalSearchParams<{ joinRoomId?: string }>();
   
   const [messages, setMessages] = useState<any[]>([]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(true);
-  const [roomId, setRoomId] = useState<string | null>(null);
+  const [rooms, setRooms] = useState<any[]>([]);
+  const [selectedRoom, setSelectedRoom] = useState<any>(null);
   const [gridKey, setGridKey] = useState<string | null>(null);
   const [hasJoined, setHasJoined] = useState(false);
   
+  // Custom Community Modal
+  const [isModalVisible, setModalVisible] = useState(false);
+  const [newCommunityName, setNewCommunityName] = useState('');
+  const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
+
   const flatListRef = useRef<FlatList>(null);
 
   useEffect(() => {
-    initCommunityChat();
+    initCommunityHub();
   }, []);
 
-  const initCommunityChat = async () => {
+  // Watch for external navigation joins from Search Screen
+  useEffect(() => {
+    if (params.joinRoomId && !loading && !selectedRoom) {
+      fetchAndJoinSpecificRoom(params.joinRoomId);
+    }
+  }, [params.joinRoomId, loading]);
+
+  const fetchAndJoinSpecificRoom = async (roomId: string) => {
+    try {
+      const { data: room } = await supabase.from('rooms').select('*').eq('id', roomId).single();
+      if (room) {
+        handleJoinRoom(room);
+      }
+    } catch (e) {
+      console.error("Failed to jump to searched room", e);
+    }
+  };
+
+  const initCommunityHub = async () => {
     if (!user) return;
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -39,12 +66,15 @@ export default function CommunityScreen() {
       const location = await Location.getCurrentPositionAsync({});
       const lat = location.coords.latitude;
       const lng = location.coords.longitude;
+      setUserLocation({ lat, lng });
 
-      const room = await getorCreateRoom(lat, lng);
-      setRoomId(room.id);
-      setGridKey(room.grid_key);
+      // Ensure the base sector room exists
+      const baseRoom = await getorCreateRoom(lat, lng);
+      setGridKey(baseRoom.grid_key);
 
-      // Successfully located the user and their grid/room, but we don't automatically join yet
+      // Fetch all rooms in area
+      await fetchAreaRooms(lat, lng);
+
     } catch (error) {
       console.error("Community init error:", error);
     } finally {
@@ -52,11 +82,40 @@ export default function CommunityScreen() {
     }
   };
 
-  const handleJoin = async () => {
-    if (!roomId) return;
-    setLoading(true);
+  const fetchAreaRooms = async (lat: number, lng: number) => {
     try {
-      const msgs = await loadMessages(roomId);
+        const areaRooms = await getRoomsInArea(lat, lng);
+        setRooms(areaRooms);
+    } catch (e) {
+        console.error("Failed to fetch area rooms", e);
+    }
+  };
+
+  const handleCreateCommunity = async () => {
+    if (!newCommunityName.trim() || !userLocation) return;
+    try {
+        setLoading(true);
+        await createCustomRoom(userLocation.lat, userLocation.lng, newCommunityName.trim());
+        setModalVisible(false);
+        setNewCommunityName('');
+        await fetchAreaRooms(userLocation.lat, userLocation.lng);
+    } catch (error: any) {
+        if (error.code === '23505') {
+            Alert.alert("Unique Constraint Violation", `Database says: ${error.message}\n\nIf it mentions "grid_key", you need to remove the Unique constraint on the grid_key column in Supabase!`);
+        } else {
+            Alert.alert("Creation Failed", error.message || "Could not create community");
+        }
+    } finally {
+        setLoading(false);
+    }
+  };
+
+  const handleJoinRoom = async (room: any) => {
+    setSelectedRoom(room);
+    setLoading(true);
+    setHasJoined(false);
+    try {
+      const msgs = await loadMessages(room.id);
       
       if (msgs.length > 0) {
         const userIds = Array.from(new Set(msgs.map(m => m.sender_id)));
@@ -65,7 +124,7 @@ export default function CommunityScreen() {
         
         const richMsgs = msgs.map(m => ({
           ...m,
-          username: profileMap.get(m.sender_id) || 'Anonymous'
+          username: profileMap.get(m.sender_id) || 'Anonymous' // Don't crash if username is empty, we handle anonymous automatically
         }));
         setMessages(richMsgs);
       } else {
@@ -81,8 +140,12 @@ export default function CommunityScreen() {
   };
 
   const fetchProfileName = async (userId: string) => {
-    const { data } = await supabase.from('profiles').select('username').eq('id', userId).single();
-    return data?.username || 'Anonymous';
+    try {
+        const { data } = await supabase.from('profiles').select('username').eq('id', userId).single();
+        return data?.username || 'Anonymous';
+    } catch (e) {
+        return 'Anonymous';
+    }
   };
 
   const onNewMessage = useCallback(async (newMessage: any) => {
@@ -96,20 +159,19 @@ export default function CommunityScreen() {
   }, []);
 
   useEffect(() => {
-    // We only subscribe AFTER the user explicitly clicks "Join"
-    if (!roomId || !hasJoined) return;
-    const unsubscribe = subscribeToRoom(roomId, onNewMessage);
+    if (!selectedRoom || !hasJoined) return;
+    const unsubscribe = subscribeToRoom(selectedRoom.id, onNewMessage);
     return () => {
       unsubscribe();
     };
-  }, [roomId, hasJoined, onNewMessage]);
+  }, [selectedRoom, hasJoined, onNewMessage]);
 
   const handleSend = async () => {
-    if (!inputText.trim() || !roomId || !user) return;
+    if (!inputText.trim() || !selectedRoom || !user) return;
     const textToSend = inputText.trim();
     setInputText('');
     try {
-      await sendMessage(roomId, user.id, textToSend);
+      await sendMessage(selectedRoom.id, user.id, textToSend);
     } catch (e) {
       console.error(e);
       setInputText(textToSend);
@@ -121,7 +183,7 @@ export default function CommunityScreen() {
     return (
       <View style={[styles.messageWrapper, isMe ? styles.messageWrapperMe : styles.messageWrapperThem]}>
         {!isMe ? (
-          <Text style={styles.senderName}>{String(item.username)}</Text>
+          <Text style={styles.senderName}>{String(item.username || 'Anonymous')}</Text>
         ) : null}
         <View style={[styles.messageBubble, isMe ? styles.messageBubbleMe : styles.messageBubbleThem]}>
           <Text style={[styles.messageText, isMe ? styles.messageTextMe : null]}>
@@ -132,11 +194,102 @@ export default function CommunityScreen() {
     );
   };
 
+  const renderRoomItem = ({ item }: { item: any }) => {
+      const roomName = item.name || `Sector ${item.grid_key} Hub`;
+      const isDefault = !item.name;
+      return (
+          <TouchableOpacity style={styles.roomCard} onPress={() => handleJoinRoom(item)}>
+              <View style={styles.roomCardIcon}>
+                  <Ionicons name={isDefault ? "planet-outline" : "people-outline"} size={24} color="#A855F7" />
+              </View>
+              <View style={styles.roomCardInfo}>
+                  <Text style={styles.roomTitle}>{roomName}</Text>
+                  <Text style={styles.roomSubtitle}>{isDefault ? "Local Default Chat" : "Custom Community"}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={24} color="#A1A1AA" />
+          </TouchableOpacity>
+      )
+  };
+
+  if (loading && !selectedRoom) {
+      return (
+          <SafeAreaView style={styles.container}>
+            <View style={styles.centerContainer}>
+              <ActivityIndicator size="large" color="#A855F7" />
+              <Text style={styles.loadingText}>Locating your sector...</Text>
+            </View>
+          </SafeAreaView>
+      )
+  }
+
+  // ROOMS LIST VIEW
+  if (!selectedRoom) {
+      const defaultRoom = rooms.find(r => !r.name);
+      const customRooms = rooms.filter(r => r.name);
+
+      return (
+          <SafeAreaView style={styles.container} edges={["top"]}>
+            <View style={styles.header}>
+              <View>
+                <Text style={styles.headerTitle}>Communities</Text>
+                {gridKey ? <Text style={styles.subTitle}>Sector {String(gridKey)}</Text> : null}
+              </View>
+              <TouchableOpacity style={styles.createButton} onPress={() => setModalVisible(true)}>
+                  <Ionicons name="add" size={20} color="#FFFFFF" />
+                  <Text style={styles.createBtnText}>Create</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.roomList} showsVerticalScrollIndicator={false}>
+                <Text style={styles.sectionTitle}>5km Sector Hub</Text>
+                {defaultRoom ? renderRoomItem({ item: defaultRoom }) : null}
+
+                <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Custom Communities</Text>
+                {customRooms.length > 0 ? customRooms.map(room => (
+                    <View key={room.id}>
+                        {renderRoomItem({ item: room })}
+                    </View>
+                )) : (
+                    <Text style={styles.emptySubtitle}>No custom communities in this 5km area yet. Create one!</Text>
+                )}
+            </ScrollView>
+
+            {/* Create Community Modal */}
+            <Modal visible={isModalVisible} transparent animationType="slide">
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>New Local Community</Text>
+                        <TextInput
+                            style={styles.modalInput}
+                            placeholder="Enter Community Name"
+                            placeholderTextColor="#A1A1AA"
+                            value={newCommunityName}
+                            onChangeText={setNewCommunityName}
+                        />
+                        <View style={styles.modalActions}>
+                            <TouchableOpacity style={styles.modalCancel} onPress={() => setModalVisible(false)}>
+                                <Text style={styles.modalCancelText}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.modalSubmit} onPress={handleCreateCommunity}>
+                                <Text style={styles.modalSubmitText}>Create</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </KeyboardAvoidingView>
+            </Modal>
+          </SafeAreaView>
+      )
+  }
+
+  // CHAT ROOM VIEW
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Community Chat</Text>
+        <TouchableOpacity style={styles.backButton} onPress={() => setSelectedRoom(null)}>
+            <Ionicons name="arrow-back" size={24} color="#A855F7" />
+        </TouchableOpacity>
+        <View style={{ flex: 1, marginLeft: 16 }}>
+          <Text style={styles.headerTitle}>{selectedRoom.name || 'Local Hub'}</Text>
           {gridKey ? <Text style={styles.subTitle}>Sector {String(gridKey)}</Text> : null}
         </View>
       </View>
@@ -147,16 +300,13 @@ export default function CommunityScreen() {
       >
         {loading ? (
           <View style={styles.centerContainer}>
-            <ActivityIndicator size="large" color="#4ade80" />
-            <Text style={styles.loadingText}>Locating your sector...</Text>
+            <ActivityIndicator size="large" color="#A855F7" />
+            <Text style={styles.loadingText}>Joining...</Text>
           </View>
         ) : !hasJoined ? (
           <View style={styles.joinContainer}>
-            <Text style={styles.joinTitle}>Join the Community 🌍</Text>
-            <Text style={styles.joinDesc}>
-              Chat with nearby users around Sector {gridKey ? String(gridKey) : '...'}
-            </Text>
-            <TouchableOpacity style={styles.joinActionBtn} onPress={handleJoin}>
+            <Text style={styles.joinTitle}>Join {selectedRoom.name || 'Local Hub'}</Text>
+            <TouchableOpacity style={styles.joinActionBtn} onPress={() => handleJoinRoom(selectedRoom)}>
               <Text style={styles.joinBtnText}>Join Now</Text>
             </TouchableOpacity>
           </View>
@@ -166,7 +316,7 @@ export default function CommunityScreen() {
               ref={flatListRef}
               data={messages}
               inverted={true}
-              keyExtractor={(item) => String(item.id)}
+              keyExtractor={(item, index) => item.id ? String(item.id) : String(index)}
               renderItem={renderMessage}
               contentContainerStyle={styles.messageList}
               showsVerticalScrollIndicator={false}
@@ -175,17 +325,17 @@ export default function CommunityScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Type to community..."
-                placeholderTextColor="#a1a1aa"
+                placeholderTextColor="#A1A1AA"
                 value={inputText}
                 onChangeText={setInputText}
                 multiline
               />
               <TouchableOpacity 
-                style={[styles.sendButton, (!inputText.trim() || !roomId) ? styles.sendButtonDisabled : null]} 
+                style={[styles.sendButton, (!inputText.trim() || !selectedRoom) ? styles.sendButtonDisabled : null]} 
                 onPress={handleSend}
-                disabled={!inputText.trim() || !roomId}
+                disabled={!inputText.trim() || !selectedRoom}
               >
-                <Text style={styles.sendButtonText}>Send</Text>
+                <Ionicons name="send" size={18} color={!inputText.trim() ? "#A1A1AA" : "#FFFFFF"} />
               </TouchableOpacity>
             </View>
           </>
@@ -198,7 +348,7 @@ export default function CommunityScreen() {
 const styles = StyleSheet.create({
     container: { 
         flex: 1, 
-        backgroundColor: '#121212' 
+        backgroundColor: '#09090B' 
     },
     centerContainer: { 
         flex: 1, 
@@ -206,30 +356,98 @@ const styles = StyleSheet.create({
         alignItems: 'center' 
     },
     loadingText: { 
-        color: '#a1a1aa', 
+        color: '#A1A1AA', 
         marginTop: 12 
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
         paddingVertical: 16,
         borderBottomWidth: 1,
-        borderBottomColor: '#2a2a35',
-        backgroundColor: '#121212',
+        borderBottomColor: '#27272A',
+        backgroundColor: '#09090B',
+    },
+    backButton: {
+        padding: 4,
+    },
+    createButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#A855F7',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 20,
+    },
+    createBtnText: {
+        color: '#FFFFFF',
+        fontWeight: '700',
+        marginLeft: 4,
+        fontSize: 13,
     },
     headerTitle: { 
         fontSize: 22, 
         fontWeight: '800', 
-        color: '#ffffff' 
+        color: '#FFFFFF' 
     },
     subTitle: { 
         fontSize: 13, 
-        color: '#4ade80', 
+        color: '#00E5FF', 
         fontWeight: '600', 
         marginTop: 2 
     },
     keyboardAware: { flex: 1 },
+    roomList: {
+        padding: 20,
+    },
+    sectionTitle: {
+        color: '#FFFFFF',
+        fontSize: 18,
+        fontWeight: '800',
+        marginBottom: 12,
+        letterSpacing: 0.5,
+    },
+    emptySubtitle: {
+        color: '#A1A1AA',
+        fontSize: 14,
+        fontStyle: 'italic',
+        marginTop: 8,
+    },
+    roomCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#18181B',
+        padding: 16,
+        borderRadius: 20,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: '#27272A',
+    },
+    roomCardIcon: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: '#09090B',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#27272A',
+        marginRight: 16,
+    },
+    roomCardInfo: {
+        flex: 1,
+    },
+    roomTitle: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '700',
+        marginBottom: 4,
+    },
+    roomSubtitle: {
+        color: '#A1A1AA',
+        fontSize: 13,
+    },
     joinContainer: {
         flex: 1,
         justifyContent: 'center',
@@ -237,27 +455,20 @@ const styles = StyleSheet.create({
         padding: 24,
     },
     joinTitle: {
-        fontSize: 24,
+        fontSize: 20,
         fontWeight: '800',
-        color: '#ffffff',
-        marginBottom: 8,
-        textAlign: 'center',
-    },
-    joinDesc: {
-        fontSize: 15,
-        color: '#a1a1aa',
-        textAlign: 'center',
+        color: '#FFFFFF',
         marginBottom: 24,
-        lineHeight: 22,
+        textAlign: 'center',
     },
     joinActionBtn: {
-        backgroundColor: '#4ade80',
+        backgroundColor: '#A855F7',
         paddingVertical: 14,
         paddingHorizontal: 32,
         borderRadius: 30,
     },
     joinBtnText: {
-        color: '#18181b',
+        color: '#FFFFFF',
         fontWeight: '700',
         fontSize: 16,
     },
@@ -277,7 +488,7 @@ const styles = StyleSheet.create({
     },
     senderName: { 
         fontSize: 13, 
-        color: '#a1a1aa', 
+        color: '#A1A1AA', 
         marginBottom: 4, 
         marginLeft: 4, 
         fontWeight: "600" 
@@ -289,57 +500,117 @@ const styles = StyleSheet.create({
         borderRadius: 20 
     },
     messageBubbleMe: { 
-        backgroundColor: '#4ade80', 
+        backgroundColor: '#A855F7', 
         borderBottomRightRadius: 4 
     },
     messageBubbleThem: { 
-        backgroundColor: '#27272a', 
-        borderBottomLeftRadius: 4 
+        backgroundColor: '#18181B', 
+        borderBottomLeftRadius: 4,
+        borderWidth: 1,
+        borderColor: '#27272A',
     },
     messageText: { 
         fontSize: 15, 
         lineHeight: 20,
-        color: '#f4f4f5' 
+        color: '#FFFFFF' 
     },
     messageTextMe: { 
-        color: '#18181b', 
+        color: '#FFFFFF', 
         fontWeight: '600' 
     },
     inputContainer: {
         flexDirection: 'row', 
         padding: 12, 
-        backgroundColor: '#1c1c20',
+        backgroundColor: '#09090B',
         borderTopWidth: 1, 
-        borderTopColor: '#2a2a35', 
+        borderTopColor: '#27272A', 
         alignItems: 'flex-end',
     },
     input: {
         flex: 1, 
-        backgroundColor: '#27272a', 
-        borderRadius: 20,
+        backgroundColor: '#18181B', 
+        borderRadius: 24,
         paddingHorizontal: 16, 
         paddingTop: 12, 
         paddingBottom: 12,
-        color: '#f4f4f5', 
+        color: '#FFFFFF', 
         fontSize: 15, 
         maxHeight: 120,
+        borderWidth: 1,
+        borderColor: '#27272A',
     },
     sendButton: {
         marginLeft: 12, 
-        backgroundColor: '#4ade80', 
+        backgroundColor: '#A855F7', 
         borderRadius: 24,
-        paddingHorizontal: 16, 
-        paddingVertical: 12, 
+        width: 44,
+        height: 44,
         justifyContent: 'center',
         alignItems: 'center', 
         marginBottom: 2,
     },
     sendButtonDisabled: { 
-        backgroundColor: '#3f3f46' 
+        backgroundColor: '#18181B',
+        borderWidth: 1,
+        borderColor: '#27272A',
     },
-    sendButtonText: { 
-        color: '#18181b', 
-        fontWeight: '700', 
-        fontSize: 15 
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(9, 9, 11, 0.8)',
+        justifyContent: 'center',
+        padding: 24,
+    },
+    modalContent: {
+        backgroundColor: '#18181B',
+        borderRadius: 24,
+        padding: 24,
+        borderWidth: 1,
+        borderColor: '#27272A',
+    },
+    modalTitle: {
+        color: '#FFFFFF',
+        fontSize: 20,
+        fontWeight: '800',
+        marginBottom: 20,
+        textAlign: 'center',
+    },
+    modalInput: {
+        backgroundColor: '#09090B',
+        borderRadius: 16,
+        padding: 16,
+        color: '#FFFFFF',
+        fontSize: 16,
+        borderWidth: 1,
+        borderColor: '#27272A',
+        marginBottom: 24,
+    },
+    modalActions: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        gap: 12,
+    },
+    modalCancel: {
+        flex: 1,
+        paddingVertical: 14,
+        borderRadius: 30,
+        backgroundColor: '#27272A',
+        alignItems: 'center',
+    },
+    modalCancelText: {
+        color: '#FFFFFF',
+        fontWeight: '700',
+        fontSize: 15,
+    },
+    modalSubmit: {
+        flex: 1,
+        paddingVertical: 14,
+        borderRadius: 30,
+        backgroundColor: '#A855F7',
+        alignItems: 'center',
+    },
+    modalSubmitText: {
+        color: '#FFFFFF',
+        fontWeight: '700',
+        fontSize: 15,
     },
 });

@@ -218,7 +218,7 @@ export default function Index() {
           <Text style={styles.loaderText}>Finding people around you...</Text>
         </View>
       ) : (
-        <FlatList
+          <FlatList
           data={nearbyUsers}
           keyExtractor={(item) => item.id.toString()}
           renderItem={renderUserCard}
@@ -229,8 +229,8 @@ export default function Index() {
             <RefreshControl 
               refreshing={refreshing} 
               onRefresh={onRefresh} 
-              tintColor="#4ade80" 
-              colors={["#4ade80"]} 
+              tintColor="#A855F7" 
+              colors={["#A855F7"]} 
             />
           }
         />
@@ -242,7 +242,7 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: "#09090B",
   },
   header: {
     flexDirection: "row",
@@ -253,7 +253,7 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   title: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: "800",
     color: "#FFFFFF",
     letterSpacing: -0.5,
@@ -261,13 +261,15 @@ const styles = StyleSheet.create({
   logoutButton: {
     paddingVertical: 8,
     paddingHorizontal: 16,
-    backgroundColor: "#ef4444",
-    borderRadius: 12,
+    backgroundColor: "#18181B",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#27272A",
   },
   logoutText: {
     color: "#FFFFFF",
-    fontWeight: "700",
-    fontSize: 14,
+    fontWeight: "600",
+    fontSize: 13,
   },
   filtersWrapper: {
     paddingHorizontal: 24,
@@ -284,13 +286,13 @@ const styles = StyleSheet.create({
   communityCard: {
     marginHorizontal: 24,
     marginBottom: 20,
-    backgroundColor: '#4ade80',
+    backgroundColor: '#A855F7',
     borderRadius: 20,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    shadowColor: '#4ade80',
+    shadowColor: '#A855F7',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -308,18 +310,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   communityTitle: {
-    color: '#18181b',
+    color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '800',
     marginBottom: 2,
   },
   communitySubtitle: {
-    color: '#27272a',
+    color: '#E9D5FF',
     fontSize: 13,
     fontWeight: '600',
   },
   communityArrow: {
-    color: '#18181b',
+    color: '#FFFFFF',
     fontSize: 24,
     fontWeight: '800',
   },
@@ -331,21 +333,21 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 24,
-    backgroundColor: "#27272a",
+    backgroundColor: "#18181B",
     borderWidth: 1,
-    borderColor: "#3f3f46",
+    borderColor: "#27272A",
   },
   chipActive: {
-    backgroundColor: "#4ade80", // Modern green
-    borderColor: "#4ade80",
+    backgroundColor: "#A855F7",
+    borderColor: "#A855F7",
   },
   chipText: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: "600",
-    color: "#a1a1aa",
+    color: "#A1A1AA",
   },
   chipTextActive: {
-    color: "#18181b", // Dark text on light green bg
+    color: "#FFFFFF",
     fontWeight: "700",
   },
   loaderContainer: {
@@ -366,40 +368,37 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1c1c20",
+    backgroundColor: "#18181B",
     padding: 16,
     borderRadius: 20,
     marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 4,
     borderWidth: 1,
-    borderColor: "#2a2a35",
+    borderColor: "#27272A",
   },
   cardAvatar: {
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: "#3f3f46",
+    backgroundColor: "#09090B",
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#27272A",
   },
   cardInfo: {
     marginLeft: 16,
     flex: 1,
   },
   username: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "700",
-    color: "#f4f4f5",
+    color: "#FFFFFF",
     marginBottom: 4,
   },
   distance: {
-    fontSize: 14,
-    color: "#a1a1aa",
-    fontWeight: "500",
+    fontSize: 13,
+    color: "#00E5FF",
+    fontWeight: "600",
   },
   emptyContainer: {
     flex: 1,

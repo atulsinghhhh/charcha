@@ -171,7 +171,7 @@ export default function ChatScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#09090B',
   },
   centerContainer: {
     flex: 1,
@@ -185,22 +185,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#2a2a35',
-    backgroundColor: '#121212',
+    borderBottomColor: '#27272A',
+    backgroundColor: '#09090B',
   },
   backButton: {
     padding: 8,
     width: 70,
   },
   backText: {
-    color: '#4ade80',
+    color: '#A855F7',
     fontSize: 16,
     fontWeight: '700',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#ffffff',
+    color: '#FFFFFF',
   },
   keyboardAware: {
     flex: 1,
@@ -226,46 +226,50 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   messageBubbleMe: {
-    backgroundColor: '#4ade80',
+    backgroundColor: '#A855F7',
     borderBottomRightRadius: 4,
   },
   messageBubbleThem: {
-    backgroundColor: '#27272a',
+    backgroundColor: '#18181B',
     borderBottomLeftRadius: 4,
+    borderWidth: 1,
+    borderColor: '#27272A',
   },
   messageText: {
     fontSize: 15,
     lineHeight: 20,
   },
   messageTextMe: {
-    color: '#18181b', // Dark text on light green
+    color: '#FFFFFF',
     fontWeight: '600',
   },
   messageTextThem: {
-    color: '#f4f4f5',
+    color: '#FFFFFF',
   },
   inputContainer: {
     flexDirection: 'row',
     padding: 12,
-    backgroundColor: '#1c1c20',
+    backgroundColor: '#09090B',
     borderTopWidth: 1,
-    borderTopColor: '#2a2a35',
+    borderTopColor: '#27272A',
     alignItems: 'flex-end',
   },
   input: {
     flex: 1,
-    backgroundColor: '#27272a',
-    borderRadius: 20,
+    backgroundColor: '#18181B',
+    borderRadius: 24,
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 12,
-    color: '#f4f4f5',
+    color: '#FFFFFF',
     fontSize: 15,
     maxHeight: 120,
+    borderWidth: 1,
+    borderColor: '#27272A',
   },
   sendButton: {
     marginLeft: 12,
-    backgroundColor: '#4ade80',
+    backgroundColor: '#A855F7',
     borderRadius: 24,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -274,10 +278,10 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   sendButtonDisabled: {
-    backgroundColor: '#3f3f46',
+    backgroundColor: '#27272A',
   },
   sendButtonText: {
-    color: '#18181b',
+    color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 15,
   },
