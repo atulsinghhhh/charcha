@@ -1,32 +1,36 @@
 {
   "expo": {
-    "name": "charcha",
+    "name": "Charcha",
     "slug": "charcha",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/charcha.jpg",
+    "icon": "./assets/images/charcha-icon.png",
     "scheme": "charcha",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/images/charcha-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#208AEF"
+    },
     "ios": {
-      "icon": "./assets/images/charcha.jpg"
+      "icon": "./assets/images/charcha-icon.png"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/charcha.jpg",
-        "backgroundImage": "./assets/images/charcha.jpg",
-        "monochromeImage": "./assets/images/charcha.jpg"
+        "foregroundImage": "./assets/images/charcha-icon.png",
+        "backgroundColor": "#E6F4FE"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION"
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
       ],
-      "package": "com.atulsinghh.charcha"
+      "package": "com.atulsinghh.charcha",
+      "versionCode": 1
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/charcha.jpg"
+      "favicon": "./assets/images/charcha-icon.png"
     },
     "plugins": [
       "expo-router",
@@ -42,7 +46,7 @@
         {
           "backgroundColor": "#208AEF",
           "android": {
-            "image": "./assets/images/splash-icon.png",
+            "image": "./assets/images/charcha-icon.png",
             "imageWidth": 76
           }
         }
