@@ -2,11 +2,20 @@
 
 **Charcha** is a proximity-based social and real-time messaging application built on React Native & Expo, powered entirely by Supabase. It uses your device's GPS to find users locally, allowing you to instantly engage in 1:1 Direct Messages, or drop into your local community's Sector Hub!
 
+## 📥 Download the App
+
+You can download the latest Android build of Charcha directly from Expo and try it out yourself:
+👉 **[Download Charcha APK](https://expo.dev/accounts/atulsinghh/projects/charcha/builds/c0aad11c-3b5b-4dfd-834d-1d22acfb6f7e)**
+
+---
+
 ## 🚀 Key Features
 
 * **Proximity User Discovery:** Instantly find other active users within a 5km or 10km radius using your device's location.
 * **Real-Time 1:1 Direct Messaging:** Chat seamlessly with nearby individuals. Features include unread counters, native inverted list auto-scrolling, and instantaneous message delivery powered by Supabase Realtime via WebSockets.
-* **Sector-Based Community Hub:** The world map is automatically divided into ~5km grid sectors. Users can drop into their specific sector's Community Chat to talk with everyone currently situated in their zone!
+* **Sector-Based Community Hubs:** The world map is automatically divided into ~5km grid sectors. Users can drop into their specific sector's Community Chat to talk with everyone currently situated in their zone!
+* **Custom Local Communities:** Users can create custom community chat rooms within their active 5km sector grid. Manage and grow your own topic-based local communities, running in parallel with the default Sector Hub.
+* **Modern Dark UI:** A fully custom, sleek dark-mode aesthetic consistent across all screens, featuring custom splash screens and icons.
 * **Secure Architecture:** Built ground-up with PostgreSQL Row Level Security (RLS). Users can only access direct messages they are participants in, ensuring absolute privacy. 
 * **Dynamic Hooks:** Uses a highly optimized Javascript approach to derive chat lists and metrics entirely off the `messages` table in `src/hooks/realtime.tsx`.
 
