@@ -30,8 +30,6 @@ export default function MessagesScreen() {
         return;
     }
     try {
-      // Fetch latest messages for user directly from messages table
-      // We explicitly check for 'room_id' being null so that Community messages don't leak into direct messages!
       const { data: msgs, error: msgError } = await supabase
         .from('messages')
         .select('*')
@@ -74,14 +72,14 @@ export default function MessagesScreen() {
       if (profileError) throw profileError;
 
       const profileMap = new Map((profiles || []).map(p => [p.id, p.username]));
-      console.log(profileMap);
+      // console.log(profileMap);
 
       const formatedConvs = Array.from(convMap.values()).map(c => ({
         ...c,
         other_username: profileMap.get(c.other_user_id) || "Anonymous User",
       }));
 
-      console.log(formatedConvs);
+      // console.log(formatedConvs);
       // Map iterators ordered by insertion, which is from latest msg down, so already sorted by time!
       setConversations(formatedConvs);
       

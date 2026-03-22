@@ -57,10 +57,11 @@ export const useCommunity = () => {
             .on("postgres_changes",{
                 event: "INSERT",
                 schema: "public",
-                table: "messages",
-                filter: `room_id=eq.${roomId}`
+                table: "messages"
             },payload => {
-                onNewMessage(payload.new);
+                if (payload.new && payload.new.room_id === roomId) {
+                    onNewMessage(payload.new);
+                }
             })
             .subscribe();
 

@@ -199,7 +199,7 @@ export default function Index() {
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Nearby Users </Text>
+        <Text style={styles.title}>Nearby Users</Text>
         <TouchableOpacity onPress={Logout} style={styles.logoutButton}>
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
