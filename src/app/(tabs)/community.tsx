@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Modal } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Modal, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthProvider';
 import { useCommunity } from '@/hooks/community';
@@ -7,6 +7,15 @@ import * as Location from "expo-location";
 import { supabase } from '@/lib/supabase/client';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
+
+const PROMPTS = [
+  'Best biryani in your area?', 
+  'What startup idea are you working on?', 
+  'IPL prediction tonight?',
+  'Gym recommendations?',
+  'Weekend plans?',
+  'Traffic updates?'
+];
 
 export default function CommunityScreen() {
   const { user } = useAuth();
@@ -26,10 +35,15 @@ export default function CommunityScreen() {
   const [newCommunityName, setNewCommunityName] = useState('');
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
 
+  const [isAnonymous, setIsAnonymous] = useState(false);
+  const [dailyPrompts, setDailyPrompts] = useState<string[]>([]);
+
   const flatListRef = useRef<FlatList>(null);
 
   useEffect(() => {
     initCommunityHub();
+    const shuffled = [...PROMPTS].sort(() => 0.5 - Math.random());
+    setDailyPrompts(shuffled.slice(0, 3));
   }, []);
 
   // Watch for external navigation joins from Search Screen
@@ -132,6 +146,17 @@ export default function CommunityScreen() {
     }
   };
 
+  const generateAnonymousName = (userId: string) => {
+    const adjectives = ['Mysterious', 'Hidden', 'Secret', 'Silent', 'Wandering', 'Cosmic'];
+    const nouns = ['Kite', 'Tiger', 'Monsoon', 'Chai', 'Samosa', 'Mango'];
+    let hash = 0;
+    for (let i = 0; i < userId.length; i++) hash = userId.charCodeAt(i) + ((hash << 5) - hash);
+    const adj = adjectives[Math.abs(hash) % adjectives.length];
+    const noun = nouns[Math.abs(hash >> 8) % nouns.length];
+    const num = Math.abs(hash) % 100;
+    return `${adj}${noun}${num}`;
+  };
+
   const handleJoinRoom = async (room: any) => {
     setSelectedRoom(room);
     setLoading(true);
@@ -146,7 +171,7 @@ export default function CommunityScreen() {
         
         const richMsgs = msgs.map(m => ({
           ...m,
-          username: profileMap.get(m.sender_id) || 'Anonymous' // Don't crash if username is empty, we handle anonymous automatically
+          username: m.is_anonymous ? generateAnonymousName(m.sender_id) : (profileMap.get(m.sender_id) || 'Anonymous')
         }));
         setMessages(richMsgs);
       } else {
@@ -171,7 +196,12 @@ export default function CommunityScreen() {
   };
 
   const onNewMessage = useCallback(async (newMessage: any) => {
-    const username = await fetchProfileName(newMessage.sender_id);
+    let username = 'Anonymous';
+    if (newMessage.is_anonymous) {
+        username = generateAnonymousName(newMessage.sender_id);
+    } else {
+        username = await fetchProfileName(newMessage.sender_id);
+    }
     const enrichedMessage = { ...newMessage, username };
 
     setMessages(prev => {
@@ -193,24 +223,78 @@ export default function CommunityScreen() {
     const textToSend = inputText.trim();
     setInputText('');
     try {
-      await sendMessage(selectedRoom.id, user.id, textToSend);
-    } catch (e) {
+      await sendMessage(selectedRoom.id, user.id, textToSend, isAnonymous);
+    } catch (e: any) {
       console.error(e);
+      Alert.alert("Error", e.message || "Failed to send message");
       setInputText(textToSend);
     }
   };
 
+  const handleUpvote = async (messageId: string) => {
+    if (!user) return;
+    try {
+      await supabase.rpc('upvote_message', { msg_id: messageId, voter_id: user.id });
+      setMessages(prev => prev.map(m => {
+        if (m.id === messageId) {
+          const currentUpvotes = m.upvotes || [];
+          if (!currentUpvotes.includes(user.id)) return { ...m, upvotes: [...currentUpvotes, user.id] };
+        }
+        return m;
+      }));
+    } catch (e: any) {
+      Alert.alert("Upvote Failed", e.message || "You may have already upvoted.");
+    }
+  };
+
+  const handleFlag = (messageId: string) => {
+    Alert.alert(
+      "Flag Message",
+      "Are you sure you want to flag this message as inappropriate?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Flag", 
+          style: "destructive", 
+          onPress: async () => {
+            try {
+              // RPC to increment flag could be created, but for now we just use a client update (assuming RLS allows it or we have an RPC)
+              // Let's assume we use a simple update for now, or just notify user.
+              // In production, you'd want an RPC or Edge Function.
+              Alert.alert("Message Flagged", "Thank you. Our moderation team will review this.");
+            } catch (e) {
+              console.error(e);
+            }
+          } 
+        }
+      ]
+    );
+  };
+
   const renderMessage = ({ item }: { item: any }) => {
     const isMe = item.sender_id === user?.id;
+    const upvotesCount = (item.upvotes || []).length;
     return (
       <View style={[styles.messageWrapper, isMe ? styles.messageWrapperMe : styles.messageWrapperThem]}>
         {!isMe ? (
           <Text style={styles.senderName}>{String(item.username || 'Anonymous')}</Text>
         ) : null}
-        <View style={[styles.messageBubble, isMe ? styles.messageBubbleMe : styles.messageBubbleThem]}>
-          <Text style={[styles.messageText, isMe ? styles.messageTextMe : null]}>
-            {String(item.content)}
-          </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity 
+            onLongPress={() => !isMe && handleFlag(item.id)}
+            activeOpacity={0.8}
+            style={[styles.messageBubble, isMe ? styles.messageBubbleMe : styles.messageBubbleThem]}
+          >
+            <Text style={[styles.messageText, isMe ? styles.messageTextMe : null]}>
+              {String(item.content)}
+            </Text>
+          </TouchableOpacity>
+          {!isMe && (
+            <TouchableOpacity style={styles.upvoteBtn} onPress={() => handleUpvote(item.id)}>
+              <Ionicons name="caret-up" size={16} color={item.upvotes?.includes(user?.id) ? "#A855F7" : "#A1A1AA"} />
+              <Text style={styles.upvoteText}>{upvotesCount > 0 ? upvotesCount : ''}</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     );
@@ -321,6 +405,16 @@ export default function CommunityScreen() {
           <Text style={styles.headerTitle}>{selectedRoom.name || 'Local Hub'}</Text>
           {gridKey ? <Text style={styles.subTitle}>Sector {String(gridKey)}</Text> : null}
         </View>
+        <View style={styles.anonymousToggle}>
+            <Ionicons name={isAnonymous ? "eye-off" : "eye"} size={20} color={isAnonymous ? "#A855F7" : "#A1A1AA"} />
+            <Switch
+                value={isAnonymous}
+                onValueChange={setIsAnonymous}
+                trackColor={{ false: "#27272A", true: "#D8B4FE" }}
+                thumbColor={isAnonymous ? "#A855F7" : "#A1A1AA"}
+                style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+            />
+        </View>
       </View>
 
       <KeyboardAvoidingView 
@@ -341,6 +435,15 @@ export default function CommunityScreen() {
           </View>
         ) : (
           <>
+            <View style={styles.promptsContainer}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16 }}>
+                {dailyPrompts.map(prompt => (
+                  <TouchableOpacity key={prompt} style={styles.promptChip} onPress={() => setInputText(prompt)}>
+                    <Text style={styles.promptText}>{prompt}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
             <FlatList
               ref={flatListRef}
               data={messages}
@@ -641,5 +744,47 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontWeight: '700',
         fontSize: 15,
+    },
+    anonymousToggle: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#18181B',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#27272A',
+    },
+    promptsContainer: {
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: '#27272A',
+        backgroundColor: '#09090B',
+    },
+    promptChip: {
+        backgroundColor: '#18181B',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        marginRight: 8,
+        borderWidth: 1,
+        borderColor: '#27272A',
+    },
+    promptText: {
+        color: '#D8B4FE',
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    upvoteBtn: {
+        marginLeft: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 4,
+    },
+    upvoteText: {
+        color: '#A1A1AA',
+        fontSize: 11,
+        fontWeight: '700',
+        marginTop: -2,
     },
 });

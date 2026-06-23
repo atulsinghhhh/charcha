@@ -37,18 +37,24 @@ export const useCommunity = () => {
         return data || [];
     }
 
-    const sendMessage = async(roomId: string,userId: string,content: string)=>{
+    const sendMessage = async(roomId: string,userId: string,content: string, isAnonymous: boolean = false)=>{
         const { error } = await supabase
             .from("messages")
             .insert([
                 {
                     room_id: roomId,
                     sender_id: userId,
-                    content: content
+                    content: content,
+                    is_anonymous: isAnonymous
                 }
             ]);
 
-        if(error) throw error;
+        if (error) {
+            if (error.message && error.message.includes("Rate limit exceeded")) {
+                throw new Error("You are sending messages too fast. Please wait a moment.");
+            }
+            throw error;
+        }
     }
 
     const subscribeToRoom = (roomId: string,onNewMessage: (message: any) => void)=>{

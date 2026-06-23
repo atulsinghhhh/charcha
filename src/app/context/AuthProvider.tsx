@@ -8,11 +8,12 @@ export interface User {
     username: string;
     latitude?: number;
     longitude?: number;
+    interests?: string[];
 }
 
 interface AuthContextType {
-    Signup: (email: string,password: string) => Promise<void>;
-    Login: (email: string,password: string) => Promise<void>;
+    Signup: (email: string, password: string, interests: string[]) => Promise<void>;
+    Login: (email: string, password: string) => Promise<void>;
     Logout: () => Promise<void>;
     user: User | null;
     loading: boolean;
@@ -55,7 +56,7 @@ export default function AuthProvider ({children}: {children: React.ReactNode}) {
         return () => subscription.unsubscribe();
     }, []);
 
-    const Signup = async (email: string,password: string) =>{
+    const Signup = async (email: string, password: string, interests: string[]) =>{
         setLoading(true);
         const username = generateUsername();
         console.log("username: ",username);
@@ -65,7 +66,8 @@ export default function AuthProvider ({children}: {children: React.ReactNode}) {
                 password,
                 options: {
                     data: {
-                        username
+                        username,
+                        interests
                     }
                 }
             });
@@ -76,10 +78,14 @@ export default function AuthProvider ({children}: {children: React.ReactNode}) {
             }
 
             if(data?.user) {
+                // Update the profile table as well since auth.signUp triggers don't always sync array columns perfectly
+                await supabase.from('profiles').update({ interests }).eq('id', data.user.id);
+                
                 setUser({
                     id: data.user.id,
                     email: data.user.email || email,
                     username: data.user.user_metadata?.username || username,
+                    interests: interests
                 });
             }
         }catch(error){

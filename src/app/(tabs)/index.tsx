@@ -28,6 +28,7 @@ export default function Index() {
   const [refreshing, setRefreshing] = useState(false);
   const [radiusKm, setRadiusKm] = useState<number>(10); 
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [onlineCount, setOnlineCount] = useState<number>(0);
 
   useEffect(() => {
     if (user) {
@@ -38,8 +39,15 @@ export default function Index() {
   useEffect(() => {
     if (userLocation && user) {
       fetchNearbyUsers(userLocation.lat, userLocation.lng, radiusKm, user.id);
+      fetchOnlineCount(userLocation.lat, userLocation.lng, radiusKm);
+      
+      const interval = setInterval(() => {
+        fetchOnlineCount(userLocation.lat, userLocation.lng, radiusKm);
+      }, 60000);
+      
+      return () => clearInterval(interval);
     }
-  }, [radiusKm]);
+  }, [radiusKm, userLocation]);
 
   const initializeLocationAndFetch = async (userId: string) => {
     setLoading(true);
@@ -93,10 +101,15 @@ export default function Index() {
 
   const fetchNearbyUsers = async (lat: number, lng: number, radius: number, userId: string) => {
     try {
+      // Get user interests from profile to pass to RPC
+      const { data: profile } = await supabase.from('profiles').select('interests').eq('id', userId).single();
+      const userInterests = profile?.interests || [];
+
       const { data, error } = await supabase.rpc("get_nearby_users", {
         user_lat: lat,
         user_lng: lng,
         radius: radius,
+        user_interests: userInterests
       });
 
       // console.log(data);
@@ -106,6 +119,20 @@ export default function Index() {
       setNearbyUsers(filteredData);
     } catch (error) {
       console.error("Error fetching nearby users:", error);
+    }
+  };
+
+  const fetchOnlineCount = async (lat: number, lng: number, radius: number) => {
+    try {
+      const { data, error } = await supabase.rpc("get_nearby_online_count", {
+        user_lat: lat,
+        user_lng: lng,
+        radius: radius,
+      });
+      if (error) throw error;
+      setOnlineCount(data || 0);
+    } catch (error) {
+      console.error("Error fetching online count:", error);
     }
   };
 
@@ -166,7 +193,9 @@ export default function Index() {
     const distanceText = (item.dist_km !== undefined && item.dist_km !== null) 
       ? `${Number(item.dist_km).toFixed(1)} km away` 
       : "Unknown distance";
-    // console.log(distanceText);
+    
+    // Format interests
+    const commonCount = item.common_interests_count || 0;
     
     return (
       <TouchableOpacity 
@@ -181,6 +210,11 @@ export default function Index() {
           <Text style={styles.username}>{item.username || "Anonymous User"}</Text>
           <Text style={styles.distance}>{distanceText}</Text>
         </View>
+        {commonCount > 0 && (
+          <View style={styles.sharedBadge}>
+            <Text style={styles.sharedBadgeText}>{commonCount} shared</Text>
+          </View>
+        )}
       </TouchableOpacity>
     );
   };
@@ -208,6 +242,15 @@ export default function Index() {
       <View style={styles.filtersWrapper}>
         <Text style={styles.filterLabel}>Search Radius</Text>
         {renderRadiusChips()}
+      </View>
+
+      <View style={styles.onlineCounterContainer}>
+        <View style={styles.onlineDot} />
+        <Text style={styles.onlineCounterText}>
+          {onlineCount < 10 
+            ? "Be one of the first in your sector!" 
+            : `${onlineCount} people online within ${radiusKm}km`}
+        </Text>
       </View>
 
       {renderCommunityCard()}
@@ -419,5 +462,46 @@ const styles = StyleSheet.create({
   emptySubtext: {
     fontSize: 16,
     color: "#a1a1aa",
+  },
+  sharedBadge: {
+    backgroundColor: '#A855F720',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#A855F750',
+  },
+  sharedBadgeText: {
+    color: '#D8B4FE',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  onlineCounterContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+    backgroundColor: '#18181B',
+    paddingVertical: 10,
+    marginHorizontal: 24,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#27272A',
+  },
+  onlineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#4ade80',
+    marginRight: 8,
+    shadowColor: '#4ade80',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+  },
+  onlineCounterText: {
+    color: '#4ade80',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

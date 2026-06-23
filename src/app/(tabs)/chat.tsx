@@ -8,6 +8,54 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthProvider';
 import { supabase } from '@/lib/supabase/client';
 import { useChatRealtime } from '@/hooks/realtime';
+import { Audio } from 'expo-av';
+
+const AudioMessage = ({ url }: { url: string }) => {
+  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  async function playSound() {
+    if (sound) {
+      if (isPlaying) {
+        await sound.pauseAsync();
+        setIsPlaying(false);
+      } else {
+        await sound.playAsync();
+        setIsPlaying(true);
+      }
+      return;
+    }
+
+    try {
+      const { sound: newSound } = await Audio.Sound.createAsync(
+        { uri: url },
+        { shouldPlay: true }
+      );
+      setSound(newSound);
+      setIsPlaying(true);
+      
+      newSound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          setIsPlaying(false);
+          newSound.setPositionAsync(0);
+        }
+      });
+    } catch (e) {
+      console.error("Failed to load sound", e);
+    }
+  }
+
+  useEffect(() => {
+    return sound ? () => { sound.unloadAsync(); } : undefined;
+  }, [sound]);
+
+  return (
+    <TouchableOpacity onPress={playSound} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 4 }}>
+      <Text style={{ fontSize: 20, marginRight: 12 }}>{isPlaying ? "⏸" : "▶️"}</Text>
+      <View style={{ height: 4, width: 80, backgroundColor: '#D8B4FE', borderRadius: 2 }} />
+    </TouchableOpacity>
+  );
+};
 
 export default function ChatScreen() {
   const router = useRouter();
@@ -22,6 +70,8 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<any[]>([]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(true);
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
   const markMessagesAsRead = async () => {
@@ -103,14 +153,81 @@ export default function ChatScreen() {
     }
   };
 
+  const startRecording = async () => {
+    try {
+      const permission = await Audio.requestPermissionsAsync();
+      if (permission.status === 'granted') {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+        });
+        const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+        setRecording(recording);
+        setIsRecording(true);
+      }
+    } catch (err) {
+      console.error('Failed to start recording', err);
+    }
+  };
+
+  const stopRecording = async () => {
+    if (!recording) return;
+    setIsRecording(false);
+    
+    try {
+      await recording.stopAndUnloadAsync();
+      const uri = recording.getURI();
+      setRecording(null);
+      if (uri) {
+        uploadVoiceNote(uri);
+      }
+    } catch (error) {
+      console.error("Error stopping recording", error);
+    }
+  };
+
+  const uploadVoiceNote = async (uri: string) => {
+    if (!user || !otherUserId) return;
+    try {
+      const ext = uri.substring(uri.lastIndexOf(".") + 1);
+      const fileName = `${user.id}_${Date.now()}.${ext}`;
+      
+      const arraybuffer = await fetch(uri).then((res) => res.arrayBuffer());
+
+      const { data, error: uploadError } = await supabase.storage
+        .from('voice_notes')
+        .upload(fileName, arraybuffer, {
+          contentType: `audio/${ext}`,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage.from('voice_notes').getPublicUrl(fileName);
+
+      await supabase.from('messages').insert({
+        sender_id: user.id,
+        receiver_id: otherUserId,
+        content: "🎤 Voice Note",
+        audio_url: publicUrl,
+      });
+
+    } catch (error) {
+      console.error("Upload error", error);
+    }
+  };
+
   const renderMessage = ({ item }: { item: any }) => {
     const isMe = item.sender_id === user?.id;
     return (
       <View style={[styles.messageWrapper, isMe ? styles.messageWrapperMe : styles.messageWrapperThem]}>
         <View style={[styles.messageBubble, isMe ? styles.messageBubbleMe : styles.messageBubbleThem]}>
-          <Text style={[styles.messageText, isMe ? styles.messageTextMe : styles.messageTextThem]}>
-            {item.content}
-          </Text>
+          {item.audio_url ? (
+            <AudioMessage url={item.audio_url} />
+          ) : (
+            <Text style={[styles.messageText, isMe ? styles.messageTextMe : styles.messageTextThem]}>
+              {item.content}
+            </Text>
+          )}
         </View>
       </View>
     );
@@ -149,19 +266,30 @@ export default function ChatScreen() {
         <View style={styles.inputContainer}>
           <TextInput
             style={styles.input}
-            placeholder="Type a message..."
-            placeholderTextColor="#a1a1aa"
+            placeholder={isRecording ? "Recording..." : "Type a message..."}
+            placeholderTextColor={isRecording ? "#EF4444" : "#a1a1aa"}
             value={inputText}
             onChangeText={setInputText}
             multiline
+            editable={!isRecording}
           />
-          <TouchableOpacity 
-            style={[styles.sendButton, (!inputText.trim() || !otherUserId) ? styles.sendButtonDisabled : null]} 
-            onPress={sendMessage}
-            disabled={!inputText.trim() || !otherUserId}
-          >
-            <Text style={styles.sendButtonText}>Send</Text>
-          </TouchableOpacity>
+          {!inputText.trim() ? (
+            <TouchableOpacity 
+              style={[styles.sendButton, isRecording ? { backgroundColor: '#EF4444' } : null]} 
+              onPressIn={startRecording}
+              onPressOut={stopRecording}
+            >
+              <Text style={styles.sendButtonText}>{isRecording ? "🔴" : "🎤"}</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity 
+              style={[styles.sendButton, (!inputText.trim() || !otherUserId) ? styles.sendButtonDisabled : null]} 
+              onPress={sendMessage}
+              disabled={!inputText.trim() || !otherUserId}
+            >
+              <Text style={styles.sendButtonText}>Send</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
